@@ -21,7 +21,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"github.com/rs/cors"
 	"os"
 	"path"
 	"strconv"
