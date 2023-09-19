@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"github.com/rs/cors"
 	"os"
 	"path"
 	"strconv"
@@ -255,14 +256,36 @@ func main() {
 	}
 
 	mux := http.FileServer(&S3{client, bucket, bucketPath})
+
+	// Create a custom CORS middleware handler.
+	corsHandler := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Set CORS headers to allow all origins. Modify this as needed.
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+			if r.Method == "OPTIONS" {
+				// Handle preflight requests.
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			// Call the next handler in the chain.
+			next.ServeHTTP(w, r)
+		})
+	}
+	// Wrap the existing mux with the CORS middleware.
+	muxWithCORS := corsHandler(mux)
+	
 	if letsEncrypt {
 		log.Printf("Started listening on https://%s\n", address)
-		certmagic.HTTPS([]string{address}, mux)
+		certmagic.HTTPS([]string{address}, muxWithCORS)
 	} else if tlsCert != "" && tlsKey != "" {
 		log.Printf("Started listening on https://%s\n", address)
-		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, mux))
+		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, muxWithCORS))
 	} else {
 		log.Printf("Started listening on http://%s\n", address)
-		log.Fatalln(http.ListenAndServe(address, mux))
+		log.Fatalln(http.ListenAndServe(address, muxWithCORS))
 	}
 }
