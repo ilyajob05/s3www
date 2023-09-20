@@ -131,6 +131,7 @@ var (
 	tlsKey        string
 	spaFile       string
 	letsEncrypt   bool
+	letsCORS      bool
 )
 
 func init() {
@@ -141,6 +142,7 @@ func init() {
 	flag.StringVar(&secretKey, "secretKey", defaultEnvString("S3WWW_SECRET_KEY", ""), "secret key for server")
 	flag.StringVar(&address, "address", defaultEnvString("S3WWW_ADDRESS", "127.0.0.1:8080"), "bind to a specific ADDRESS:PORT, ADDRESS can be an IP or hostname")
 	flag.BoolVar(&letsEncrypt, "lets-encrypt", defaultEnvBool("S3WWW_LETS_ENCRYPT", false), "enable Let's Encrypt for automatic TLS certs for the DOMAIN")
+        flag.BoolVar(&letsCORS, "lets-CORS", defaultEnvBool("S3WWW_LETS_CORS", false), "enable Let's CORS for Cross-Origin Resource Sharing")
 	flag.StringVar(&tlsCert, "ssl-cert", defaultEnvString("S3WWW_SSL_CERT", ""), "public TLS certificate for this server")
 	flag.StringVar(&tlsKey, "ssl-key", defaultEnvString("S3WWW_SSL_KEY", ""), "private TLS key for this server")
 	flag.StringVar(&accessKeyFile, "accessKeyFile", defaultEnvString("S3WWW_ACCESS_KEY_FILE", ""), "file which contains the access key")
@@ -255,14 +257,41 @@ func main() {
 	}
 
 	mux := http.FileServer(&S3{client, bucket, bucketPath})
+
+	var mux_handle http.Handler
+	if letsCORS {
+		// Create a custom CORS middleware handler
+		corsHandler := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Set CORS headers to allow all origins. Modify this as needed.
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	
+				if r.Method == "OPTIONS" {
+					// Handle preflight requests.
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+	
+				// Call the next handler in the chain.
+				next.ServeHTTP(w, r)
+			})
+		}
+		// Wrap the existing mux with the CORS middleware.
+		mux_handle = corsHandler(mux)
+	} else {
+		mux_handle = mux
+	}
+	
 	if letsEncrypt {
 		log.Printf("Started listening on https://%s\n", address)
-		certmagic.HTTPS([]string{address}, mux)
+		certmagic.HTTPS([]string{address}, mux_handle)
 	} else if tlsCert != "" && tlsKey != "" {
 		log.Printf("Started listening on https://%s\n", address)
-		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, mux))
+		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, mux_handle))
 	} else {
 		log.Printf("Started listening on http://%s\n", address)
-		log.Fatalln(http.ListenAndServe(address, mux))
+		log.Fatalln(http.ListenAndServe(address, mux_handle))
 	}
 }
