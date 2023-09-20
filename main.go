@@ -258,6 +258,7 @@ func main() {
 
 	mux := http.FileServer(&S3{client, bucket, bucketPath})
 
+	var mux_handle http.Handler
 	if letsCORS {
 		// Create a custom CORS middleware handler
 		corsHandler := func(next http.Handler) http.Handler {
@@ -278,9 +279,9 @@ func main() {
 			})
 		}
 		// Wrap the existing mux with the CORS middleware.
-		mux_handle := corsHandler(mux)
+		mux_handle = corsHandler(mux)
 	} else {
-		mux_handle := mux
+		mux_handle = mux
 	}
 	
 	if letsEncrypt {
