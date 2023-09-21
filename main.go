@@ -31,6 +31,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/minio/minio-go/v7/pkg/s3utils"
+	"github.com/rs/cors"
 )
 
 // S3 - A S3 implements FileSystem using the minio client
@@ -258,40 +259,23 @@ func main() {
 
 	mux := http.FileServer(&S3{client, bucket, bucketPath})
 
-	var mux_handle http.Handler
+	var mux_handler http.Handler
 	if letsCORS {
-		// Create a custom CORS middleware handler
-		corsHandler := func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// Set CORS headers to allow all origins. Modify this as needed.
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	
-				if r.Method == "OPTIONS" {
-					// Handle preflight requests.
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-	
-				// Call the next handler in the chain.
-				next.ServeHTTP(w, r)
-			})
-		}
 		// Wrap the existing mux with the CORS middleware.
-		mux_handle = corsHandler(mux)
+		mux_handler = cors.Default().Handler(mux)
 	} else {
-		mux_handle = mux
+		mux_handler = mux
 	}
 	
 	if letsEncrypt {
 		log.Printf("Started listening on https://%s\n", address)
-		certmagic.HTTPS([]string{address}, mux_handle)
+		certmagic.HTTPS([]string{address}, mux_handler)
 	} else if tlsCert != "" && tlsKey != "" {
 		log.Printf("Started listening on https://%s\n", address)
-		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, mux_handle))
+		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, mux_handler))
 	} else {
 		log.Printf("Started listening on http://%s\n", address)
-		log.Fatalln(http.ListenAndServe(address, mux_handle))
+		log.Fatalln(http.ListenAndServe(address, mux_handler))
 	}
 }
+
