@@ -31,6 +31,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/minio/minio-go/v7/pkg/s3utils"
+	"github.com/minio/pkg/wildcard"
 	"github.com/rs/cors"
 )
 
@@ -120,19 +121,19 @@ func getObject(ctx context.Context, s3 *S3, name string) (*minio.Object, error) 
 }
 
 var (
-	endpoint      string
-	accessKey     string
-	accessKeyFile string
-	secretKey     string
-	secretKeyFile string
-	address       string
-	bucket        string
-	bucketPath    string
-	tlsCert       string
-	tlsKey        string
-	spaFile       string
-	letsEncrypt   bool
-	letsCORS      bool
+	endpoint            string
+	accessKey           string
+	accessKeyFile       string
+	secretKey           string
+	secretKeyFile       string
+	address             string
+	bucket              string
+	bucketPath          string
+	tlsCert             string
+	tlsKey              string
+	spaFile             string
+	allowedCorsOrigin   string
+	letsEncrypt         bool
 )
 
 func init() {
@@ -143,12 +144,12 @@ func init() {
 	flag.StringVar(&secretKey, "secretKey", defaultEnvString("S3WWW_SECRET_KEY", ""), "secret key for server")
 	flag.StringVar(&address, "address", defaultEnvString("S3WWW_ADDRESS", "127.0.0.1:8080"), "bind to a specific ADDRESS:PORT, ADDRESS can be an IP or hostname")
 	flag.BoolVar(&letsEncrypt, "lets-encrypt", defaultEnvBool("S3WWW_LETS_ENCRYPT", false), "enable Let's Encrypt for automatic TLS certs for the DOMAIN")
-        flag.BoolVar(&letsCORS, "lets-CORS", defaultEnvBool("S3WWW_LETS_CORS", false), "enable Let's CORS for Cross-Origin Resource Sharing")
 	flag.StringVar(&tlsCert, "ssl-cert", defaultEnvString("S3WWW_SSL_CERT", ""), "public TLS certificate for this server")
 	flag.StringVar(&tlsKey, "ssl-key", defaultEnvString("S3WWW_SSL_KEY", ""), "private TLS key for this server")
 	flag.StringVar(&accessKeyFile, "accessKeyFile", defaultEnvString("S3WWW_ACCESS_KEY_FILE", ""), "file which contains the access key")
 	flag.StringVar(&secretKeyFile, "secretKeyFile", defaultEnvString("S3WWW_SECRET_KEY_FILE", ""), "file which contains the secret key")
 	flag.StringVar(&spaFile, "spaFile", defaultEnvString("S3WWW_SPA_FILE", ""), "if working with SPA (Single Page Application), use this key the set the absolute path of the file to call whenever a file dosen't exist")
+	flag.StringVar(&allowedCorsOrigin, "allowed-cors-origins", defaultEnvString("S3WWW_ALLOWED_CORS_ORIGINS", ""), "a list of origins a cross-domain request can be executed from")
 }
 
 func defaultEnvString(key string, defaultVal string) string {
@@ -259,13 +260,33 @@ func main() {
 
 	mux := http.FileServer(&S3{client, bucket, bucketPath})
 
-	var mux_handler http.Handler
-	if letsCORS {
-		// Wrap the existing mux with the CORS middleware.
-		mux_handler = cors.Default().Handler(mux)
-	} else {
-		mux_handler = mux
+	// Wrap the existing mux with the CORS middleware.
+	opts := cors.Options{
+		AllowOriginFunc: func(origin string) bool {
+			if allowedCorsOrigin == "" {
+				return true
+			}
+			for _, allowedOrigin := range strings.Split(allowedCorsOrigin, ",") {
+				if wildcard.MatchSimple(allowedOrigin, origin) {
+					return true
+				}
+			}
+			return false
+		},
+		AllowedMethods: []string{
+			http.MethodGet,
+			http.MethodPut,
+			http.MethodHead,
+			http.MethodPost,
+			http.MethodDelete,
+			http.MethodOptions,
+			http.MethodPatch,
+		},
+		AllowedHeaders:   []string{"*"},
+		ExposedHeaders:   []string{"*"},
+		AllowCredentials: true,
 	}
+	mux_handler := cors.New(opts).Handler(mux)
 	
 	if letsEncrypt {
 		log.Printf("Started listening on https://%s\n", address)
@@ -278,4 +299,3 @@ func main() {
 		log.Fatalln(http.ListenAndServe(address, mux_handler))
 	}
 }
-
