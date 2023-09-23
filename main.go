@@ -286,16 +286,16 @@ func main() {
 		ExposedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	}
-	mux_handler := cors.New(opts).Handler(mux)
+	muxHandler := cors.New(opts).Handler(mux)
 	
 	if letsEncrypt {
 		log.Printf("Started listening on https://%s\n", address)
-		certmagic.HTTPS([]string{address}, mux_handler)
+		certmagic.HTTPS([]string{address}, muxHandler)
 	} else if tlsCert != "" && tlsKey != "" {
 		log.Printf("Started listening on https://%s\n", address)
-		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, mux_handler))
+		log.Fatalln(http.ListenAndServeTLS(address, tlsCert, tlsKey, muxHandler))
 	} else {
 		log.Printf("Started listening on http://%s\n", address)
-		log.Fatalln(http.ListenAndServe(address, mux_handler))
+		log.Fatalln(http.ListenAndServe(address, muxHandler))
 	}
 }
