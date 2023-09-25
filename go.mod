@@ -5,6 +5,8 @@ go 1.18
 require (
 	github.com/caddyserver/certmagic v0.17.2
 	github.com/minio/minio-go/v7 v7.0.61
+	github.com/minio/pkg v1.7.5
+	github.com/rs/cors v1.10.0
 )
 
 require (
@@ -23,8 +25,8 @@ require (
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
-	go.uber.org/zap v1.23.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
