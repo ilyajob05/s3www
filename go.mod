@@ -1,4 +1,4 @@
-module github.com/harshavardhana/s3www
+module github.com/ilyajob05/s3www
 
 go 1.18
 
